@@ -12,7 +12,7 @@ exports.loginWithGoogle = async (req, res) => {
     let authCode = req.body.authCode;
     let providerId = req.body.providerId;
     let provider = req.body.provider;
-    if(provider==ANDROID){
+    if(provider===ANDROID){
         try{
             const ticket = await androidClient.verifyIdToken({
                 idToken: idToken,
