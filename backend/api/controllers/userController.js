@@ -4,67 +4,72 @@ const uuid = require('uuid');
 const ANDROID_CLIENT_ID = process.env.ANDROID_CLIENT_ID; // android client
 const WEB_CLIENT_ID = process.env.WEB_CLIENT_ID; // web client
 const WEB_CLIENT_SECRET = process.env.WEB_CLIENT_SECRET;
+const ANDROID = "android";
 
 exports.loginWithGoogle = async (req, res) => {
     const androidClient = new OAuth2Client(ANDROID_CLIENT_ID);
     let idToken = req.body.idToken;
     let authCode = req.body.authCode;
     let providerId = req.body.providerId;
-    try{
-        const ticket = await androidClient.verifyIdToken({
-            idToken: idToken,
-            audience: WEB_CLIENT_ID,  // Specify the CLIENT_ID of the app that accesses the backend web client
-        });
-        const payload = ticket.getPayload();
-        const userid = payload['sub'];
-        console.log("payload: ",payload);
+    let provider = req.body.provider;
+    if(provider==ANDROID){
+        try{
+            const ticket = await androidClient.verifyIdToken({
+                idToken: idToken,
+                audience: WEB_CLIENT_ID,  // Specify the CLIENT_ID of the app that accesses the backend web client
+            });
+            const payload = ticket.getPayload();
+            const userid = payload['sub'];
+            console.log("payload: ",payload);
 
-        let id = (new Date()).getTime().toString(36);
-        let sessionToken = uuid.v1();
+            let id = (new Date()).getTime().toString(36);
+            let sessionToken = uuid.v1();
 
-        // Check if the user is an existing one
-        let existinguser = await User.findOne({providerId:providerId}).exec();
+            // Check if the user is an existing one
+            let existinguser = await User.findOne({providerId:providerId}).exec();
 
-        if(existinguser!==null) {
-            await User.findOneAndUpdate({providerId:providerId}, {sessionToken:sessionToken}).exec();
-            return res.status(200).json({
+            if(existinguser!==null) {
+                await User.findOneAndUpdate({providerId:providerId}, {sessionToken:sessionToken}).exec();
+                return res.status(200).json({
+                    name:payload.name,
+                    email:payload.email,
+                    sessionId:sessionToken,
+                    id:existinguser.id,
+                });
+            }
+
+            const webClient = new OAuth2Client(WEB_CLIENT_ID, WEB_CLIENT_SECRET, "");
+
+            const tokens = await webClient.getToken(authCode);
+
+            console.log(tokens.tokens);
+
+            let user = new User({
+                id: id,
+                providerId: userid,
+                provider: provider,
+                name:payload.name,
+                email:payload.email,
+                accessToken:tokens.tokens.access_token,
+                refreshToken:tokens.tokens.refresh_token,
+                sessionToken:sessionToken,
+            });
+            
+            await user.save()
+
+            console.log("success user creation with google our session token:",sessionToken);
+            
+            res.status(200).json({
                 name:payload.name,
                 email:payload.email,
                 sessionId:sessionToken,
-                id:existinguser.id,
+                id:id,
             });
+
+        } catch(err) {
+            console.log(err);
+            res.status(401).json({msg:"Failed authenticatiing user", err:err})
         }
-
-        const webClient = new OAuth2Client(WEB_CLIENT_ID, WEB_CLIENT_SECRET, "");
-
-        const tokens = await webClient.getToken(authCode);
-
-        console.log(tokens.tokens);
-
-        let user = new User({
-            id: id,
-            providerId: userid,
-            name:payload.name,
-            email:payload.email,
-            accessToken:tokens.tokens.access_token,
-            refreshToken:tokens.tokens.refresh_token,
-            sessionToken:sessionToken,
-        });
-        
-        await user.save()
-
-        console.log("success user creation with google our session token:",sessionToken);
-        
-        res.status(200).json({
-            name:payload.name,
-            email:payload.email,
-            sessionId:sessionToken,
-            id:id,
-        });
-
-    } catch(err) {
-        console.log(err);
-        res.status(401).json({msg:"Failed authenticatiing user", err:err})
     }
     
 }

@@ -9,9 +9,12 @@ public class LoginRequest {
     public String authCode;
     @SerializedName("providerId")
     public String providerId;
+    @SerializedName("provider")
+    public String provider;
     public LoginRequest(String idToken, String authCode, String providerId) {
         this.idToken = idToken;
         this.authCode = authCode;
         this.providerId = providerId;
+        this.provider = "android";
     }
 }

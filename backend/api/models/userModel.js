@@ -12,6 +12,10 @@
             required:true,
             unique:true
         },
+        provider: {
+            type:String,
+            required:true,
+        },
         providerId: {
             type:String,
             required:true,
