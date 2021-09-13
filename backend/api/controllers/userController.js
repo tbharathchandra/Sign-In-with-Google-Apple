@@ -1,10 +1,16 @@
 const User = require("../models/userModel");
 const {OAuth2Client} = require('google-auth-library');
 const uuid = require('uuid');
+const axios = require('axios');
+const jwksClient = require('jwks-rsa');
+const jwt_decode = require('jwt-decode');
+const jwt = require('jsonwebtoken');
+
 const ANDROID_CLIENT_ID = process.env.ANDROID_CLIENT_ID; // android client
 const WEB_CLIENT_ID = process.env.WEB_CLIENT_ID; // web client
 const WEB_CLIENT_SECRET = process.env.WEB_CLIENT_SECRET;
 const ANDROID = "android";
+const APPLE = "apple";
 
 exports.loginWithGoogle = async (req, res) => {
     const androidClient = new OAuth2Client(ANDROID_CLIENT_ID);
@@ -70,6 +76,8 @@ exports.loginWithGoogle = async (req, res) => {
             console.log(err);
             res.status(401).json({msg:"Failed authenticatiing user", err:err})
         }
+    }else if(provider===APPLE){
+
     }
     
 }
@@ -80,7 +88,17 @@ exports.loginWithSessionToken = async (req, res) => {
     let sessionId = req.body.sessionId;
     try {
         let user = await User.findOne({id:id}).exec();
-        if(user.sessionToken===sessionId) return res.status(200).json({msg:"User can log in"});
+        if(user.sessionToken===sessionId) {
+            // const response = await axios.post(
+            //     REFRESH_URL(WEB_CLIENT_ID, WEB_CLIENT_SECRET, user.refreshToken),
+            // );
+            // if(response.data.access_token) {
+            //     await User.findOneAndUpdate({id:id}, {accessToken:response.data.access_token}).exec();
+            //     return res.status(200).json({msg:"User can log in"});
+            // }
+            // else res.status(404).json({msg:"Unable to refresh access token"});
+            return res.status(200).json({msg:"User can log in"});
+        }
         else res.status(404).json({msg:"Session Id not found"});
     }catch(err) {
         console.log(err);
@@ -119,3 +137,36 @@ exports.disconnect = async (req, res) => {
         res.status(401);
     }
 }
+
+exports.securityEventReceiver = (req, res) => {
+    let issuer = "accounts.google.com";
+    let jwksUri = "https://www.googleapis.com/oauth2/v3/certs";
+    // try{
+    //     let unverifiedJWT = jwt_decode(req.token, { header: true });
+    //     let kid = unverifiedJWT.kid;
+
+    //     const jwksclient = jwksClient({
+    //         jwksUri: jwksUri,
+    //       });
+    //     const key = await jwksclient.getSigningKeys(kid);
+    //     const signingKey = key.getPublicKey();
+        
+    //     jwt.verify(req.token, signingKey, { algorithms: ['RS256'], issuer:issuer }, function (err, payload){
+    //         if(err){
+    //             console.log(err);
+    //             return res.status(401);
+    //         }
+    //         console.log("Security payload -----> "+payload);
+    //     });
+
+    // }catch(err) {
+    //     console.log(err);
+    //     res.status(401);
+    // }
+    console.log('Google Security token'+req.token);
+}
+
+const REFRESH_URL = (client_id, client_secret, refresh_token) =>
+  `https://www.googleapis.com/oauth2/v4/token?client_id=${client_id}
+    client_secret=${client_secret}&refresh_token=${refresh_token}&grant_type=refresh_token`;
+

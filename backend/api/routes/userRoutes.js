@@ -22,4 +22,8 @@ module.exports = function(app) {
     app
     .route("/disconnect")
     .post(user.disconnect);
+
+    app
+    .route("/securityEventReceiver")
+    .post(user.securityEventReceiver);
 }
