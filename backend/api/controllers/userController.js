@@ -28,7 +28,7 @@ exports.loginWithGoogle = async (req, res) => {
             const userid = payload['sub'];
             console.log("payload: ",payload);
 
-            let id = (new Date()).getTime().toString(36);
+            let id = uuid.v3();
             let sessionToken = uuid.v1();
 
             // Check if the user is an existing one
@@ -49,6 +49,16 @@ exports.loginWithGoogle = async (req, res) => {
             const tokens = await webClient.getToken(authCode);
 
             console.log(tokens.tokens);
+
+            if(existinguser.refresh_token===null){
+                await User.findOneAndUpdate({providerId:providerId}, {accessToken:tokens.tokens.access_token,refreshToken:tokens.tokens.refresh_token,}).exec();
+                return res.status(200).json({
+                    name:payload.name,
+                    email:payload.email,
+                    sessionId:sessionToken, 
+                    id:existinguser.id,
+                });
+            }
 
             let user = new User({
                 id: id,
@@ -96,7 +106,10 @@ exports.loginWithSessionToken = async (req, res) => {
                 await User.findOneAndUpdate({id:id}, {accessToken:response.data.access_token}).exec();
                 return res.status(200).json({msg:"User can log in"});
             }
-            else res.status(404).json({msg:"Unable to refresh access token"});
+            else {
+                await User.findOneAndUpdate({id:id}, {sessionToken:"", accessToken:"", refreshToken:""}).exec();
+                res.status(404).json({msg:"Unable to refresh access token"});
+            }
             // return res.status(200).json({msg:"User can log in"});
         }
         else res.status(404).json({msg:"Session Id not found"});
@@ -111,7 +124,7 @@ exports.logout = async (req, res) => {
     try{
         let user = await User.findOne({id:id}).exec();
         if(user) {
-            await User.findOneAndUpdate({id:id}, {sessionToken:""}).exec();
+            await User.findOneAndUpdate({id:id}, {sessionToken:"", accessToken:"", refreshToken:""}).exec();
             return res.status(200).json({msg:"User logged out"});
         }
     }catch(err) {
