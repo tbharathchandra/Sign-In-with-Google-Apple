@@ -39,7 +39,7 @@ exports.loginWithGoogle = async (req, res) => {
                 return res.status(200).json({
                     name:payload.name,
                     email:payload.email,
-                    sessionId:sessionToken,
+                    sessionId:sessionToken, 
                     id:existinguser.id,
                 });
             }
@@ -89,15 +89,15 @@ exports.loginWithSessionToken = async (req, res) => {
     try {
         let user = await User.findOne({id:id}).exec();
         if(user.sessionToken===sessionId) {
-            // const response = await axios.post(
-            //     REFRESH_URL(WEB_CLIENT_ID, WEB_CLIENT_SECRET, user.refreshToken),
-            // );
-            // if(response.data.access_token) {
-            //     await User.findOneAndUpdate({id:id}, {accessToken:response.data.access_token}).exec();
-            //     return res.status(200).json({msg:"User can log in"});
-            // }
-            // else res.status(404).json({msg:"Unable to refresh access token"});
-            return res.status(200).json({msg:"User can log in"});
+            const response = await axios.post(
+                REFRESH_URL(WEB_CLIENT_ID, WEB_CLIENT_SECRET, user.refreshToken),
+            );
+            if(response.data.access_token) {
+                await User.findOneAndUpdate({id:id}, {accessToken:response.data.access_token}).exec();
+                return res.status(200).json({msg:"User can log in"});
+            }
+            else res.status(404).json({msg:"Unable to refresh access token"});
+            // return res.status(200).json({msg:"User can log in"});
         }
         else res.status(404).json({msg:"Session Id not found"});
     }catch(err) {
