@@ -26,6 +26,7 @@ import com.google.android.gms.common.SignInButton;
 import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.common.api.Scope;
 import com.google.android.gms.tasks.Task;
+import com.google.android.material.progressindicator.CircularProgressIndicator;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -40,6 +41,7 @@ public class MainActivity extends AppCompatActivity {
     APIInterface apiInterface;
     private Button disconnect;
     private SharedPrefManger sharedPrefManger;
+    private CircularProgressIndicator progressIndicator;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -48,19 +50,24 @@ public class MainActivity extends AppCompatActivity {
 
         googleSignIn = findViewById(R.id.sign_in_button);
         disconnect = findViewById(R.id.disconnect_btn);
+        progressIndicator = findViewById(R.id.progress_circular);
         apiInterface = APIClient.getClient().create(APIInterface.class);
-
 
         createGoogleSigninClient();
 
         googleSignIn.setOnClickListener(view -> {
+            progressIndicator.setVisibility(View.VISIBLE);
             Intent signInIntent = googleSignInClient.getSignInIntent();
             startActivityForResult(signInIntent, RC_SIGN_IN);
         });
 
         disconnect.setOnClickListener(v -> {
+            progressIndicator.setVisibility(View.VISIBLE);
             googleSignInClient.revokeAccess().addOnCompleteListener(task -> {
+                progressIndicator.setVisibility(View.INVISIBLE);
                 Toast.makeText(MainActivity.this, "Success disconnect", Toast.LENGTH_LONG).show();
+            }).addOnFailureListener(e->{
+                progressIndicator.setVisibility(View.INVISIBLE);
             });
         });
     }
@@ -70,7 +77,10 @@ public class MainActivity extends AppCompatActivity {
         super.onStart();
         sharedPrefManger = SharedPrefManger.getSharedPrefManger(getApplicationContext());
         if(!sharedPrefManger.getSessionid().equals("")){
+            Toast.makeText(MainActivity.this, "Checking Session Token.. Please wait", Toast.LENGTH_LONG).show();
             checkLoginStatus(sharedPrefManger.getSessionid(), sharedPrefManger.getUserid());
+        }else{
+            Toast.makeText(MainActivity.this, "Please Sign In with Google", Toast.LENGTH_LONG).show();
         }
     }
 
@@ -81,18 +91,25 @@ public class MainActivity extends AppCompatActivity {
         loginSessionResponseCall.enqueue(new Callback<LoginSessionResponse>() {
             @Override
             public void onResponse(Call<LoginSessionResponse> call, Response<LoginSessionResponse> response) {
-                LoginResponse loginResponse = new LoginResponse();
-                loginResponse.name = sharedPrefManger.getName();
-                loginResponse.email = sharedPrefManger.getEmailId();
-                loginResponse.sessionId = sharedPrefManger.getSessionid();
-                loginResponse.id = sharedPrefManger.getUserid();
+                progressIndicator.setVisibility(View.INVISIBLE);
+                if(response.isSuccessful()){
+                    LoginResponse loginResponse = new LoginResponse();
+                    loginResponse.name = sharedPrefManger.getName();
+                    loginResponse.email = sharedPrefManger.getEmailId();
+                    loginResponse.sessionId = sharedPrefManger.getSessionid();
+                    loginResponse.id = sharedPrefManger.getUserid();
 
-                Toast.makeText(MainActivity.this, "Login Session token success", Toast.LENGTH_LONG).show();
-                launchLandingActivity(loginResponse);
+                    Toast.makeText(MainActivity.this, "Login Session token success", Toast.LENGTH_LONG).show();
+                    launchLandingActivity(loginResponse);
+                }else {
+                    Toast.makeText(MainActivity.this, "Login with session token failed, try sign in with google", Toast.LENGTH_LONG).show();
+                }
             }
 
             @Override
             public void onFailure(Call<LoginSessionResponse> call, Throwable t) {
+                progressIndicator.setVisibility(View.INVISIBLE);
+                t.printStackTrace();
                 Toast.makeText(MainActivity.this, "Login with session token failed", Toast.LENGTH_LONG).show();
             }
         });
@@ -143,13 +160,19 @@ public class MainActivity extends AppCompatActivity {
         loginCall.enqueue(new Callback<LoginResponse>() {
             @Override
             public void onResponse(Call<LoginResponse> call, Response<LoginResponse> response) {
-                Toast.makeText(MainActivity.this, "Login success - Backend", Toast.LENGTH_LONG).show();
-                storeSessionDetails(response.body());
-                launchLandingActivity(response.body());
+                progressIndicator.setVisibility(View.INVISIBLE);
+                if(response.isSuccessful()){
+                    Toast.makeText(MainActivity.this, "Login success - Backend", Toast.LENGTH_LONG).show();
+                    storeSessionDetails(response.body());
+                    launchLandingActivity(response.body());
+                }else {
+                    signOutFromGoogle();
+                }
             }
 
             @Override
             public void onFailure(Call<LoginResponse> call, Throwable t) {
+                progressIndicator.setVisibility(View.INVISIBLE);
                 signOutFromGoogle();
             }
         });

@@ -28,21 +28,11 @@ exports.loginWithGoogle = async (req, res) => {
             const userid = payload['sub'];
             console.log("payload: ",payload);
 
-            let id = uuid.v3();
+            let id = uuid.v1();
             let sessionToken = uuid.v1();
 
             // Check if the user is an existing one
             let existinguser = await User.findOne({providerId:providerId}).exec();
-
-            if(existinguser!==null) {
-                await User.findOneAndUpdate({providerId:providerId}, {sessionToken:sessionToken}).exec();
-                return res.status(200).json({
-                    name:payload.name,
-                    email:payload.email,
-                    sessionId:sessionToken, 
-                    id:existinguser.id,
-                });
-            }
 
             const webClient = new OAuth2Client(WEB_CLIENT_ID, WEB_CLIENT_SECRET, "");
 
@@ -50,8 +40,8 @@ exports.loginWithGoogle = async (req, res) => {
 
             console.log(tokens.tokens);
 
-            if(existinguser.refresh_token===null){
-                await User.findOneAndUpdate({providerId:providerId}, {accessToken:tokens.tokens.access_token,refreshToken:tokens.tokens.refresh_token,}).exec();
+            if(existinguser!==null){
+                await User.findOneAndUpdate({providerId:providerId}, {accessToken:tokens.tokens.access_token,refreshToken:tokens.tokens.refresh_token,sessionToken:sessionToken}).exec();
                 return res.status(200).json({
                     name:payload.name,
                     email:payload.email,
@@ -96,17 +86,22 @@ exports.loginWithGoogle = async (req, res) => {
 exports.loginWithSessionToken = async (req, res) => {
     let id = req.body.id;
     let sessionId = req.body.sessionId;
+    let user = null;
     try {
-        let user = await User.findOne({id:id}).exec();
+        user = await User.findOne({id:id}).exec();
+        console.log("user -- ", user)
         if(user.sessionToken===sessionId) {
-            const response = await axios.post(
-                REFRESH_URL(WEB_CLIENT_ID, WEB_CLIENT_SECRET, user.refreshToken),
-            );
-            if(response.data.access_token) {
-                await User.findOneAndUpdate({id:id}, {accessToken:response.data.access_token}).exec();
-                return res.status(200).json({msg:"User can log in"});
+            try{
+                const response = await axios.post(
+                    REFRESH_URL(WEB_CLIENT_ID, WEB_CLIENT_SECRET, user.refreshToken),
+                );
+                console.log("Access Token -- ", response.data.access_token)
+                if(response.data.access_token) {
+                    await User.findOneAndUpdate({id:id}, {accessToken:response.data.access_token}).exec();
+                    return res.status(200).json({msg:"User can log in"});
+                }
             }
-            else {
+            catch(err) {
                 await User.findOneAndUpdate({id:id}, {sessionToken:"", accessToken:"", refreshToken:""}).exec();
                 res.status(404).json({msg:"Unable to refresh access token"});
             }
@@ -114,7 +109,6 @@ exports.loginWithSessionToken = async (req, res) => {
         }
         else res.status(404).json({msg:"Session Id not found"});
     }catch(err) {
-        console.log(err);
         res.status(404).json({msg:"Failed login", err:err});
     }
 }
@@ -124,6 +118,8 @@ exports.logout = async (req, res) => {
     try{
         let user = await User.findOne({id:id}).exec();
         if(user) {
+            if(user.refreshToken)
+                await axios.get(REVOKE_TOKEN(user.refreshToken));
             await User.findOneAndUpdate({id:id}, {sessionToken:"", accessToken:"", refreshToken:""}).exec();
             return res.status(200).json({msg:"User logged out"});
         }
@@ -180,6 +176,8 @@ exports.securityEventReceiver = (req, res) => {
 }
 
 const REFRESH_URL = (client_id, client_secret, refresh_token) =>
-  `https://www.googleapis.com/oauth2/v4/token?client_id=${client_id}
-    client_secret=${client_secret}&refresh_token=${refresh_token}&grant_type=refresh_token`;
+  `https://www.googleapis.com/oauth2/v4/token?client_id=${client_id}&client_secret=${client_secret}&refresh_token=${refresh_token}&grant_type=refresh_token`;
+
+const REVOKE_TOKEN = (refresh_token) =>
+    `https://accounts.google.com/o/oauth2/revoke?token=${refresh_token}`;
 

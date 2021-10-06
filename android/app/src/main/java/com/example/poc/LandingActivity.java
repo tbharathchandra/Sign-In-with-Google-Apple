@@ -23,7 +23,9 @@ import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
 import com.google.android.gms.auth.api.signin.GoogleSignInClient;
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
 import com.google.android.gms.tasks.OnCompleteListener;
+import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.Task;
+import com.google.android.material.progressindicator.CircularProgressIndicator;
 
 import org.jetbrains.annotations.NotNull;
 
@@ -39,6 +41,7 @@ public class LandingActivity extends AppCompatActivity {
     private TextView name, email, sessionToken, id;
     private SharedPrefManger sharedPrefManger;
     APIInterface apiInterface;
+    private CircularProgressIndicator progressIndicator;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -69,6 +72,7 @@ public class LandingActivity extends AppCompatActivity {
         email = findViewById(R.id.email_tv);
         id = findViewById(R.id.id_tv);
         sessionToken = findViewById(R.id.sessionToken_tv);
+        progressIndicator = findViewById(R.id.progress_circular);
     }
 
     private void initView() {
@@ -95,8 +99,12 @@ public class LandingActivity extends AppCompatActivity {
     }
 
     private void disconnectFromGoogle() {
+        progressIndicator.setVisibility(View.VISIBLE);
         googleSignInClient.revokeAccess().addOnCompleteListener(task -> {
             disconnectUser();
+        }).addOnFailureListener(e -> {
+            Toast.makeText(LandingActivity.this, "Failed Google disconnect - local", Toast.LENGTH_LONG).show();
+            progressIndicator.setVisibility(View.INVISIBLE);
         });
     }
 
@@ -106,21 +114,31 @@ public class LandingActivity extends AppCompatActivity {
         disconnectResponseCall.enqueue(new Callback<DisconnectResponse>() {
             @Override
             public void onResponse(Call<DisconnectResponse> call, Response<DisconnectResponse> response) {
-                Toast.makeText(LandingActivity.this, "Success disconnect", Toast.LENGTH_LONG).show();
-                sharedPrefManger.clearSharedPrefs();
-                launchMainActivity();
+                progressIndicator.setVisibility(View.INVISIBLE);
+                if(response.isSuccessful()){
+                    Toast.makeText(LandingActivity.this, "Success disconnect", Toast.LENGTH_LONG).show();
+                    sharedPrefManger.clearSharedPrefs();
+                    launchMainActivity();
+                }else {
+                    Toast.makeText(LandingActivity.this, "Failed disconnect - backend", Toast.LENGTH_LONG).show();
+                }
             }
 
             @Override
             public void onFailure(Call<DisconnectResponse> call, Throwable t) {
+                progressIndicator.setVisibility(View.INVISIBLE);
                 Toast.makeText(LandingActivity.this, "Failed disconnect - backend", Toast.LENGTH_LONG).show();
             }
         });
     }
 
     private void signOutFromGoogle() {
+        progressIndicator.setVisibility(View.VISIBLE);
         googleSignInClient.signOut().addOnCompleteListener(task -> {
             logoutUser();
+        }).addOnFailureListener(e -> {
+            Toast.makeText(LandingActivity.this, "Failed Google Logout - local", Toast.LENGTH_LONG).show();
+            progressIndicator.setVisibility(View.INVISIBLE);
         });
     }
 
@@ -130,13 +148,19 @@ public class LandingActivity extends AppCompatActivity {
         logoutResponseCall.enqueue(new Callback<LogoutResponse>() {
             @Override
             public void onResponse(Call<LogoutResponse> call, Response<LogoutResponse> response) {
-                Toast.makeText(LandingActivity.this, "Success Logout", Toast.LENGTH_LONG).show();
-                sharedPrefManger.clearSharedPrefs();
-                launchMainActivity();
+                progressIndicator.setVisibility(View.INVISIBLE);
+                if(response.isSuccessful()){
+                    Toast.makeText(LandingActivity.this, "Success Logout", Toast.LENGTH_LONG).show();
+                    sharedPrefManger.clearSharedPrefs();
+                    launchMainActivity();
+                }else {
+                    Toast.makeText(LandingActivity.this, "Failed Logout - backend", Toast.LENGTH_LONG).show();
+                }
             }
 
             @Override
             public void onFailure(Call<LogoutResponse> call, Throwable t) {
+                progressIndicator.setVisibility(View.INVISIBLE);
                 Toast.makeText(LandingActivity.this, "Failed Logout - backend", Toast.LENGTH_LONG).show();
             }
         });
